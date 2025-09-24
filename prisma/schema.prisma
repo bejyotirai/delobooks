@@ -1,0 +1,179 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+model User {
+  id        String   @id @default(uuid())
+  createdAt DateTime
+  updatedAt DateTime
+
+  name          String
+  email         String    @unique
+  emailVerified Boolean
+  image         String?
+  role          UserRole  @default(USER)
+  banned        Boolean?  @default(false)
+  banReason     String?
+  banExpires    DateTime?
+
+  sessions    Session[]
+  accounts    Account[]
+  orders      Order[]
+  ownedEbooks OwnedEbook[]
+  sharedFrom SharedEbook[] @relation("SharedFrom")
+  sharedTo   SharedEbook[] @relation("SharedTo")
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  createdAt DateTime
+  updatedAt DateTime
+
+  expiresAt      DateTime
+  token          String   @unique
+  ipAddress      String?
+  userAgent      String?
+  impersonatedBy String?
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model Account {
+  id        String   @id @default(uuid())
+  createdAt DateTime
+  updatedAt DateTime
+
+  accountId             String
+  providerId            String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("accounts")
+}
+
+model Verification {
+  id        String    @id @default(uuid())
+  createdAt DateTime?
+  updatedAt DateTime?
+
+  identifier String
+  value      String
+  expiresAt  DateTime
+
+  @@map("verifications")
+}
+
+model Ebook {
+  id                 String   @id @default(uuid())
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @default(now()) @updatedAt
+  slug               String   @unique
+  title              String
+  author             String
+  coverImage         String
+  images             String[]
+  description        String
+  url                String
+  originalPrice      Int
+  discountedPrice    Int
+  discountPercentage Int
+  pages              Int
+  format             String[]
+  category           String
+
+  orderItems   OrderItem[]
+  ownedBy      OwnedEbook[]
+  sharedEbooks SharedEbook[]
+}
+
+model Order {
+  id                String      @id @default(uuid())
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  userId            String
+  amount            Int
+  taxAmount         Int         @default(0)
+  totalAmount       Int
+  status            OrderStatus @default(PENDING)
+  razorpayOrderId   String?
+  razorpayPaymentId String?
+  razorpaySignature String?
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderItems OrderItem[]
+}
+
+model OrderItem {
+  id       String @id @default(uuid())
+  orderId  String
+  ebookId  String
+  price    Int
+  quantity Int    @default(1)
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  ebook Ebook @relation(fields: [ebookId], references: [id])
+}
+
+model OwnedEbook {
+  id          String   @id @default(uuid())
+  userId      String
+  ebookId     String
+  purchasedAt DateTime @default(now())
+  quantity    Int      @default(1) 
+  available   Int      @default(1)
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ebook Ebook @relation(fields: [ebookId], references: [id], onDelete: Cascade)
+
+  sharedEbooks SharedEbook[] 
+
+  @@unique([userId, ebookId])
+}
+
+model SharedEbook {
+  id         String   @id @default(uuid())
+  fromUserId String 
+  toUserId   String 
+  ebookId    String
+  sharedAt   DateTime @default(now())
+
+  fromUser     User        @relation("SharedFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser       User        @relation("SharedTo", fields: [toUserId], references: [id], onDelete: Cascade)
+  ebook        Ebook       @relation(fields: [ebookId], references: [id], onDelete: Cascade)
+  OwnedEbook   OwnedEbook? @relation(fields: [ownedEbookId], references: [id])
+  ownedEbookId String?
+
+  @@unique([fromUserId, toUserId, ebookId])
+}
