@@ -90,7 +90,7 @@ export default function SignUpForm({
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Email</FormLabel>
+                      <FormLabel>Name</FormLabel>
                       <FormControl>
                         <Input
                           placeholder="Enter Your Name"
